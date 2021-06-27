@@ -1,5 +1,5 @@
 function config(entry = []) {
-    return [...entry, require.resolve('./dist/esm/preset/preview')];
+    return [...entry, require.resolve('./lib/preset/preview')];
 }
 
 function webpackFinal(config) {
@@ -15,6 +15,7 @@ function webpackFinal(config) {
                     exclude: [
                         /\/.storybook\//,
                         /\/node_modules\//,
+                        /\/storybook-addon-dna\//,
                     ],
                 },
             ],
