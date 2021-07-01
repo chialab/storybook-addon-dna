@@ -1,81 +1,46 @@
-/**
- * @see https://github.com/storybookjs/storybook/pull/15138
- */
 const typescript = require('typescript');
-
-const convertCustomElementsManifest = function(manifest) {
-    if (!manifest.modules) {
-        return;
-    }
-
-    manifest.modules.forEach((entry) => {
-        if (!entry.exports) {
-            return;
-        }
-
-        manifest.tags = manifest.tags || [];
-        manifest.tags.push(...entry.exports
-            .filter((exp) => exp.kind === 'custom-element-definition')
-            .map((exp) => {
-                const declaration = entry.declarations.find(({ kind, name }) => kind === 'class' && name === exp.declaration.name);
-                return {
-                    ...declaration,
-                    properties: (declaration.members || [])
-                        .filter((member) => !member.privacy && member.kind !== 'method')
-                        .map((member) => {
-                            if (member.type) {
-                                member.type = member.type.text;
-                            }
-                            return member;
-                        }),
-                    methods: (declaration.members || [])
-                        .filter((member) => !member.privacy && member.kind !== 'field'),
-                    attributes: (declaration.attributes || [])
-                        .map((member) => {
-                            if (member.type) {
-                                member.type = member.type.text;
-                            }
-                            return member;
-                        }),
-                    ...exp,
-                };
-            })
-        );
-    });
-};
 
 module.exports = async function(source, map, meta) {
     const callback = this.async();
     const { create } = await import('@custom-elements-manifest/analyzer/src/create.js');
-    const { litPlugin } = await import('@custom-elements-manifest/analyzer/src/features/framework-plugins/lit/lit.js');
+    const { default: dnaPlugins } = await import('@chialab/dna/analyzer');
+
     const modules = [
         typescript.createSourceFile(this.resourcePath, source, typescript.ScriptTarget.ES2015, true),
     ];
+
     const customElementsManifest = create({
         modules,
         plugins: [
-            ...litPlugin(),
+            ...dnaPlugins(),
         ],
     });
 
-    convertCustomElementsManifest(customElementsManifest);
-
-    if (!customElementsManifest.tags || customElementsManifest.tags.length === 0) {
+    if (!customElementsManifest.modules ||
+        customElementsManifest.modules.length === 0) {
         return callback(null, source, map, meta);
     }
 
-    const result = `import { getCustomElements as __getCustomElements__, setCustomElements as __setCustomElements__ } from '@storybook/web-components';\n${source}
+    const result = `import * as __STORYBOOK_WEB_COMPONENTS__ from '@storybook/web-components';\n${source}
 
-    const __CUSTOM_ELEMENT_JSON__ = ${JSON.stringify(customElementsManifest)};
-    const __CUSTOM_ELEMENTS_JSON__ = __getCustomElements__() || {};
-    __setCustomElements__({
-        ...__CUSTOM_ELEMENTS_JSON__,
-        ...__CUSTOM_ELEMENT_JSON__,
-        tags: [
-            ...(__CUSTOM_ELEMENTS_JSON__.tags || []),
-            ...(__CUSTOM_ELEMENT_JSON__.tags || []),
-        ],
-    });`;
+    (function() {
+        const { getCustomElements, setCustomElementsManifest } = __STORYBOOK_WEB_COMPONENTS__;
+        if (!setCustomElementsManifest) {
+            console.debug('Custom Element Manifest is not supported by this version of Storybook.');
+            return;
+        }
+
+        const CUSTOM_ELEMENT_JSON = ${JSON.stringify(customElementsManifest)};
+        const CUSTOM_ELEMENTS_JSON = getCustomElements() || {};
+        setCustomElementsManifest({
+            ...CUSTOM_ELEMENTS_JSON,
+            ...CUSTOM_ELEMENT_JSON,
+            modules: [
+                ...(CUSTOM_ELEMENTS_JSON.modules || []),
+                ...(CUSTOM_ELEMENT_JSON.modules || []),
+            ],
+        });
+    }())`;
 
     callback(null, result, map, meta);
 };

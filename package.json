@@ -1,6 +1,6 @@
 {
   "name": "@chialab/storybook-addon-dna",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "A storybook addon for better DNA components integration.",
   "keywords": [
     "storybook-addons",
