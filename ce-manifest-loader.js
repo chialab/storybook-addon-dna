@@ -21,6 +21,28 @@ module.exports = async function(source, map, meta) {
         return callback(null, source, map, meta);
     }
 
+    customElementsManifest.modules.forEach((mod) => {
+        if (!mod.declarations) {
+            return;
+        }
+
+        mod.declarations
+            .filter((decl) => decl.customElement && decl.attributes && decl.members)
+            .forEach((decl) => {
+                decl.attributes.forEach((attr) => {
+                    const member = decl.members.find((m) => m.name === attr.fieldName);
+                    if (!member) {
+                        return member;
+                    }
+
+                    attr.name += ' ';
+                    attr.description = `🔗 **${member.name}**`;
+                    attr.type = undefined;
+                    attr.default = undefined;
+                });
+            });
+    });
+
     const result = `import * as __STORYBOOK_WEB_COMPONENTS__ from '@storybook/web-components';\n${source}
 
     (function() {
